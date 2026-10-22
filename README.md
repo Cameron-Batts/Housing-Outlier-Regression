@@ -2,6 +2,14 @@
 
 **Author:** Cameron Batts
 
+## Validation update - October 22, 2026
+
+The revised R workflow executed and rendered. Before/after data contain 1,933/986 rows; complete-case model samples contain 1,910/981. All 30 flagged scenario prices were replaced in the hypothetical demonstration. Fitting R² changed from 0.8691 to 0.9213; this is not predictive validation or evidence of fraud. A ggfortify/na.exclude diagnostic mismatch was fixed with native lm diagnostic plots, and crowded facet axes were reformatted. Model formulas and the scenario assumptions were preserved.
+
+[Aggregate validation record](Reports/validation_results.json). [Executed R workflow](Reports/executed_workflow.html) · [Recorded R environment](Reports/validated_session.txt).
+
+Run `Rscript validation/rerun_analysis.R` from the project root.
+
 ## Problem
 Investigate repeated sale prices, model assumptions and sensitivity to model-based target replacement.
 
@@ -15,7 +23,7 @@ Data checks found 1,933 earlier and 986 later records, each with 82 columns incl
 Repeated prices, density peaks and residual patterns do not establish fraud. The original workflow replaced flagged targets with model predictions plus 1% noise; smoother residuals after that operation do not validate recovered prices or independent predictive accuracy. No held-out evaluation was reported. Existing images and PDF contain historical wording and interpretations that predate this correction.
 
 ## Verification
-Dataset dimensions, missingness and relevant counts were checked directly. R is unavailable in this environment, so revised R code was reviewed but not parsed, executed or rendered. No new fitted-model performance is claimed.
+Dataset dimensions, missingness and relevant counts were checked directly. The revised R workflow was executed and rendered during this pass. Fresh revised-workflow metrics are reported separately from the archive; no operational benefit is claimed.
 
 ## Data
 The included data have no documented upstream source or redistribution license in the original repository. Preserve provenance when it becomes available.
@@ -26,7 +34,7 @@ Install R and Pandoc (or use RStudio), then run from the repository root:
 source("install.R")
 rmarkdown::render("Notebooks/housing_outlier_regression.Rmd")
 ```
-Dependencies are unpinned.
+Tested numerical/NLP packages are recorded in requirements-validation.txt.
 
 ## Files
 - [R Markdown analysis](Notebooks/housing_outlier_regression.Rmd)

@@ -1,1 +1,1 @@
-install.packages(c("rmarkdown", "knitr", "tidyverse", "ggfortify", "broom"), repos = "https://cloud.r-project.org")
+install.packages(c("rmarkdown", "knitr", "jsonlite", "ggplot2"), repos = "https://cloud.r-project.org")

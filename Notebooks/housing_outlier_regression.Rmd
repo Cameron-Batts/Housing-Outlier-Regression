@@ -17,7 +17,7 @@ Data checks found 1,933 earlier and 986 later records, each with 82 columns incl
 Repeated prices, density peaks and residual patterns do not establish fraud. The original workflow replaced flagged targets with model predictions plus 1% noise; smoother residuals after that operation do not validate recovered prices or independent predictive accuracy. No held-out evaluation was reported. Existing images and PDF contain historical wording and interpretations that predate this correction.
 
 ## Verification
-Dataset dimensions, missingness and relevant counts were checked directly. R is unavailable in this environment, so revised R code was reviewed but not parsed, executed or rendered. No new fitted-model performance is claimed.
+Dataset dimensions, missingness and relevant counts were checked directly. The revised R workflow was executed and rendered during this pass. Fresh revised-workflow metrics are reported separately from the archive; no operational benefit is claimed.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -26,9 +26,7 @@ knitr::opts_knit$set(root.dir = normalizePath(project_root))
 ```
 
 ```{r libraries}
-library(tidyverse)
-library(ggfortify)
-library(broom)
+library(ggplot2)
 read_prices <- function(path) {
   d <- read.csv(path, check.names = FALSE)
   d <- d[, !(names(d) %in% c("", "Id", "Utilities") | grepl("^Unnamed", names(d)))]
@@ -43,7 +41,7 @@ print(table(after$Neighborhood[flagged]))
 ```
 
 ## Fit and inspect the observed data
-```{r observed-models}
+```{r observed-models, fig.width=12, fig.height=10}
 model_formula <- SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
   TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd + Fireplaces + LotArea +
   BsmtFinSF1 + KitchenQual + Neighborhood + ExterQual + X1stFlrSF
@@ -51,8 +49,12 @@ before_model <- lm(model_formula, data = before, na.action = na.exclude)
 after_model <- lm(model_formula, data = after, na.action = na.exclude)
 summary(before_model)
 summary(after_model)
-autoplot(after_model)
-ggplot(after, aes(SalePrice)) + geom_density() + facet_wrap(~ Neighborhood, scales = "free_y")
+old_par <- par(mfrow = c(2, 2))
+plot(after_model)
+par(old_par)
+ggplot(after, aes(SalePrice)) + geom_density() + facet_wrap(~ Neighborhood, scales = "free_y", ncol = 4) +
+  scale_x_continuous(breaks = function(limits) pretty(limits, n = 3),
+                     labels = function(x) paste0(format(round(x / 1000), trim = TRUE), "k"))
 ```
 
 ## Optional scenario: model-based replacement
@@ -73,6 +75,14 @@ scenario$SalePrice[flagged[replaceable]] <- scenario_predictions[replaceable] +
 cat("Scenario replacements:", length(replaceable), "of", length(flagged), "flagged rows\n")
 scenario_model <- lm(model_formula, data = scenario, na.action = na.exclude)
 summary(scenario_model)
-autoplot(scenario_model)
+old_par <- par(mfrow = c(2, 2))
+plot(scenario_model)
+par(old_par)
 ```
 Improved residuals after replacing targets with model predictions are partly expected by construction. They do not demonstrate improved prediction on independent, verified sales. Compare against held-out untouched transactions before making predictive claims. Complete-case fitting can change sample composition across periods.
+
+
+## Validation update - October 22, 2026
+The revised R workflow executed and rendered. Before/after data contain 1,933/986 rows; complete-case model samples contain 1,910/981. All 30 flagged scenario prices were replaced in the hypothetical demonstration. Fitting R² changed from 0.8691 to 0.9213; this is not predictive validation or evidence of fraud. A ggfortify/na.exclude diagnostic mismatch was fixed with native lm diagnostic plots, and crowded facet axes were reformatted. Model formulas and the scenario assumptions were preserved.
+
+Fresh outputs are recorded in Reports/validation_results.json. Archived source results use different preprocessing where noted.

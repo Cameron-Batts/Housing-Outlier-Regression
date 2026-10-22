@@ -1,0 +1,29 @@
+{
+  "before_rows": 1933,
+  "after_rows": 986,
+  "flagged_rows": 30,
+  "scenario_replacements": 30,
+  "before_model_n": 1910,
+  "after_model_n": 981,
+  "scenario_model_n": 981,
+  "before_fitting_r2": 0.8832537651138,
+  "after_fitting_r2": 0.8691142074406,
+  "scenario_fitting_r2": 0.921294429926,
+  "checked_at_utc": "2026-10-22 22:02:53 UTC",
+  "R_version": "R version 4.5.3 (2026-03-11)",
+  "package_versions": {
+    "knitr": "1.52",
+    "rmarkdown": "2.32",
+    "jsonlite": "2.0.0",
+    "dplyr": "1.2.1",
+    "ggplot2": "4.0.3",
+    "forecast": "9.0.2",
+    "vars": "1.6.1",
+    "rpart": "4.1.27",
+    "ggfortify": "0.4.24",
+    "broom": "1.0.13",
+    "nycflights13": "1.0.2"
+  },
+  "source": "Notebooks/housing_outlier_regression.Rmd",
+  "scope": "Revised R Markdown workflow executed and rendered; archived historical analyses are not claimed as reproduced when preprocessing or evaluation changed."
+}
