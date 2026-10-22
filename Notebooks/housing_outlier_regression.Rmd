@@ -1,426 +1,78 @@
 ---
-title: "Housing Market Outlier Detection & Regression Analysis"
+title: "Housing Regression Diagnostics and Price Sensitivity"
 author: "Cameron Batts"
 output: html_document
 ---
 
+## Problem
+Investigate repeated sale prices, model assumptions and sensitivity to model-based target replacement.
+
+## Approach
+Inspect the provided pre/post-2009 files, fit a fixed 15-term regression specification, compare diagnostic plots and retain raw targets separately from an optional replacement scenario.
+
+## Reported results
+Data checks found 1,933 earlier and 986 later records, each with 82 columns including an exported row index. Thirty later records share the exact sale price $142,769.70, compared with zero earlier records. They span ten neighborhoods, including nine Gilbert and four NAmes observations.
+
+## Limitations and corrections
+Repeated prices, density peaks and residual patterns do not establish fraud. The original workflow replaced flagged targets with model predictions plus 1% noise; smoother residuals after that operation do not validate recovered prices or independent predictive accuracy. No held-out evaluation was reported. Existing images and PDF contain historical wording and interpretations that predate this correction.
+
+## Verification
+Dataset dimensions, missingness and relevant counts were checked directly. R is unavailable in this environment, so revised R code was reviewed but not parsed, executed or rendered. No new fitted-model performance is claimed.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+project_root <- if (dir.exists("Data")) "." else ".."
+knitr::opts_knit$set(root.dir = normalizePath(project_root))
 ```
 
-
-
-```{r}
-# Reading in the data and taking a glimpse of data before manipulation. Summary shows categories with heavy NAs
+```{r libraries}
 library(tidyverse)
-before2009 = read_csv("PricesBefore2009.csv")
-str("PricesBefore2009")
-head(before2009)
-summary(before2009)
-```
-
-
-```{r}
-# Convert MSSubClass, OverallQual, and OverallCond to factors since they are currently categories and not numerical order
-before2009$MSSubClass = as.factor(before2009$MSSubClass)
-before2009$OverallQual = as.factor(before2009$OverallQual)
-before2009$OverallCond = as.factor(before2009$OverallCond)
-
-# OverallQual and OverallCond are ordinal (rating scales)
-before2009$OverallQual <- ordered(before2009$OverallQual)
-before2009$OverallCond <- ordered(before2009$OverallCond)
-
-# Check structure to verify columns are now factors
-str(before2009)
-```
-
-
-
-```{r}
-# Compute number of NAs in each column
-na_counts = colSums(is.na(before2009))
-
-# Get column names
-col_names = colnames(before2009)
-
-# Combine two vectors side by side and NA counts into a dataframe called beforeNAs
-beforeNAs = data.frame(Data_Fields = col_names, NAs = na_counts)
-
-# View 10 rows
-head(beforeNAs, 10)
-```
-
-
-
-```{r}
-# Sort the NA counts in descending order to see which columns have the most missing data
-beforeNAs = beforeNAs[order(-beforeNAs$NAs), ]
-
-# Display the top 10 columns with the most missing values
-head(beforeNAs, 10)
-```
-
-
-
-
-```{r}
-# Drop columns (except SalePrice) that have more than 100 missing values
-before2009 = before2009[, colSums(is.na(before2009)) <= 100 | colnames(before2009) == "SalePrice"]
-
-# Drop Id and Utilities columns
-before2009 = subset(before2009, select = -c(Id, Utilities))
-
-# Print first 10 rows to verify
-head(before2009, 10)
-```
-
-
-
-```{r}
-# Conduct multiple linear regression with SalePrice as the response
-regBefore2009 = lm(SalePrice ~ ., data = before2009)
-
-# Print summary to verify results
-summary(regBefore2009)
-
-# R-squared = 0.9662: The model explains 96.6% of the variance in house prices before 2009
-# Adjusted R-squared = 0.9613
-# F-statistic: Highly significant p-value: < 2.2e-16
-```
-
-
-
-```{r}
-# Looking at the above output, coefficients with P-values less than .05 and significance flags (*, **, ***) were identified. Physical and quality related variables showed very low p-values.
-
-# Variables grouped by category (e.g. multiple neighborhood variables into one neighborhood category).
-
-regBefore2009optimal = lm(SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
-                          TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd +
-                          Fireplaces + LotArea + BsmtFinSF1 + KitchenQual +
-                          Neighborhood + ExterQual + X1stFlrSF, data = before2009)
-summary(regBefore2009optimal)
-```
-
-```{r}
-# Multiple R-squared: 0.8816, Adjusted R-squared: 0.8784, F-statistic: 273.8 on 49 and 1801 DF, p-value: < 2.2e-16.
-# The predictors explained approximately 88%.
-```
-
-
-```{r}
-library(ggplot2)
 library(ggfortify)
-# Display diagnostic plots for the regression model
-autoplot(regBefore2009optimal)
-```
-
-
-
-```{r}
-# Load the after2009 dataset
-after2009 = read_csv("PricesAfter2009.csv")
-
-# Convert MSSubClass, OverallQual, and OverallCond to factors (same as before2009)
-after2009$MSSubClass = as.factor(after2009$MSSubClass)
-after2009$OverallQual = as.factor(after2009$OverallQual)
-after2009$OverallCond = as.factor(after2009$OverallCond)
-
-# OverallQual and OverallCond are ordinal (rating scales)
-after2009$OverallQual <- ordered(after2009$OverallQual)
-after2009$OverallCond <- ordered(after2009$OverallCond)
-
-# Drop columns (except SalePrice) that have more than 100 missing values
-after2009 = after2009[, colSums(is.na(after2009)) <= 100 | colnames(after2009) == "SalePrice"]
-
-# Drop Id and Utilities columns
-after2009 = subset(after2009, select = -c(Id, Utilities))
-
-# Print first 10 rows to verify
-head(after2009, 10)
-```
-
-
-
-```{r}
-library(ggplot2)
-
-# Create a density plot of SalePrice for all neighborhoods after 2009
-# Used free_y to allow each neighborhood to have its own y-axis
-# X axis is Sale Price, Y axis shows relative frequency via density
-
-ggplot(after2009, aes(x = SalePrice)) +
-  geom_density(fill = "red", alpha = 0.5, color = "black") +
-  facet_wrap(~ Neighborhood, scales = "free_y") +
-  scale_x_continuous(labels = scales::comma, breaks = seq(0, 500000, 100000)) +
-  ggtitle("Density Plot of Sale Prices by Neighborhood (After 2009)") +
-  xlab("Sale Price ($)") +
-  ylab("Density") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(size = 6))
-```
-
-```{r}
-# The majority of neighborhoods display smooth, single-peaked price distributions. Difficult to see any fraud activity at this level.
-```
-
-
-```{r}
-library(gridExtra)
-library(ggplot2)
-library(scales)
-
-# Density plot for NAmes before 2009
-pBefore2009NAmes = ggplot(before2009[before2009$Neighborhood == "NAmes", ], aes(x = SalePrice)) +
-  geom_density(fill = "yellow", alpha = 0.5) +
-  ggtitle("Density Plot NAmes Before 2009") +
-  xlab("Sale Price") +
-  xlim(0, 800000) +
-  scale_x_continuous(labels = scales::comma) +
-  theme_minimal()
-
-# Density plot for NAmes after 2009
-pAfter2009NAmes = ggplot(after2009[after2009$Neighborhood == "NAmes", ], aes(x = SalePrice)) +
-  geom_density(fill = "orange", alpha = 0.5) +
-  ggtitle("Density Plot NAmes After 2009") +
-  xlab("Sale Price") +
-  xlim(0, 800000) +
-  scale_x_continuous(labels = scales::comma) +
-  theme_minimal()
-
-# Density plot for Gilbert before 2009
-pBefore2009Gilbert = ggplot(before2009[before2009$Neighborhood == "Gilbert", ], aes(x = SalePrice)) +
-  geom_density(fill = "lightgreen", alpha = 0.5) +
-  ggtitle("Density Plot Gilbert Before 2009") +
-  xlab("Sale Price") +
-  xlim(0, 800000) +
-  scale_x_continuous(labels = scales::comma) +
-  theme_minimal()
-
-# Density plot for Gilbert after 2009
-pAfter2009Gilbert = ggplot(after2009[after2009$Neighborhood == "Gilbert", ], aes(x = SalePrice)) +
-  geom_density(fill = "lightblue", alpha = 0.5) +
-  ggtitle("Density Plot Gilbert After 2009") +
-  xlab("Sale Price") +
-  xlim(0, 800000) +
-  scale_x_continuous(labels = scales::comma) +
-  theme_minimal()
-
-grid.arrange(pBefore2009NAmes, pAfter2009NAmes, pBefore2009Gilbert, pAfter2009Gilbert, nrow = 2)
-```
-
-
-
-```{r}
-# NAmes shows no clear signs of pricing anomalies or fraud. Prices remained consistent before and after 2009, suggesting stable market behavior.
-# Gilbert's after2009 curve suggests possible irregularities. The sharper peak and multiple bumps indicate sales concentrated at unusual price points, a pattern consistent with fraudulent activity clustering prices around artificial targets.
-```
-
-
-
-```{r}
-# Run multiple linear regression on after2009 using the same variables as before2009optimal
-regAfter2009optimal = lm(SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
-                         TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd +
-                         Fireplaces + LotArea + BsmtFinSF1 + KitchenQual +
-                         Neighborhood + ExterQual + X1stFlrSF, data = after2009)
-
-summary(regAfter2009optimal)
-```
-
-
-```{r}
-library(ggfortify)
-autoplot(regAfter2009optimal)
-
-# The Residuals vs Fitted graph and Scale-Location graph show a clear deviation indicating possible fraud.
-```
-
-```{r}
-ggplot(data = regAfter2009optimal, aes(x = .fitted, y = .resid)) +
-  geom_point(color = "blue", alpha = 0.6) +
-  stat_smooth(method = "loess", color = "red", se = FALSE) +
-  ggtitle("Residuals vs Fitted Values (After 2009)") +
-  xlab("Fitted Values") +
-  ylab("Residuals")
-```
-
-```{r}
-# The Residuals vs Fitted plot shows a line of outliers deviating towards the bottom right from the main cluster. These points represent potential outliers with unusually high or low residuals, indicating properties with sale prices much higher or lower than expected, suggesting possible data errors or fraudulent activity.
-```
-
-
-```{r}
-# Method: Use the before2009 model to generate realistic sale prices for flagged rows.
-# Step 1: Identify rows in after2009 where old fraud occurred (SalePrice == 142769.7).
-# Step 2: Use regBefore2009optimal to predict what those houses should have sold for based on their features.
-# Step 3: Add small random variation (about +/-1%) to make prices look natural.
-# Step 4: Replace only the flagged SalePrice values with the new model-based values.
-# Rationale: Using the model ensures each replaced value makes sense for its specific house. Adding random noise simulates natural market fluctuations so values do not appear computer-generated.
-```
-
-```{r}
-# Density plots for NAmes and Gilbert before fraud fix.
-# The red dashed line marks the artificially repeated price of $142,769.70.
-# In Gilbert, the clustering produces a visible bump near the red line, suggesting tampering.
-
-pFraudNAmes <- ggplot(after2009 %>% filter(Neighborhood == "NAmes"),
-                      aes(x = SalePrice)) +
-  geom_density(fill = "yellow", alpha = 0.5, color = "black") +
-  geom_vline(xintercept = 142769.7, color = "red", linetype = "dashed", size = 1) +
-  ggtitle("NAmes - Before Fraud Fix (Showing Fraud Spike)") +
-  xlab("Sale Price") +
-  ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-pFraudGilbert <- ggplot(after2009 %>% filter(Neighborhood == "Gilbert"),
-                        aes(x = SalePrice)) +
-  geom_density(fill = "lightgreen", alpha = 0.5, color = "black") +
-  geom_vline(xintercept = 142769.7, color = "red", linetype = "dashed", size = 1) +
-  ggtitle("Gilbert - Before Fraud Fix (Showing Fraud Spike)") +
-  xlab("Sale Price") +
-  ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-grid.arrange(pFraudNAmes, pFraudGilbert, nrow = 1)
-```
-
-```{r}
-library(dplyr)
-library(ggplot2)
-library(gridExtra)
-library(ggfortify)
-
-# Find which rows have the suspicious SalePrice
-flagged_rows_before2009 = which(before2009$SalePrice == 142769.7)
-flagged_rows_after2009 = which(after2009$SalePrice == 142769.7)
-
-flagged_rows_before2009
-flagged_rows_after2009
-```
-
-```{r}
-after2009[flagged_rows_after2009[1:30], c("Neighborhood", "SalePrice")]
-```
-
-```{r}
-# Use regBefore2009optimal to predict realistic prices for the flagged rows
-predicted_prices = predict(regBefore2009optimal,
-                           newdata = after2009[flagged_rows_after2009, ])
-```
-
-```{r}
-data.frame(Row = 1:length(predicted_prices), Predicted_Price = predicted_prices)
-```
-
-```{r}
-summary(predicted_prices)
-```
-
-```{r}
-fraud_neighborhoods = after2009[flagged_rows_after2009, c("Neighborhood", "GrLivArea", "OverallQual", "SalePrice")]
-head(fraud_neighborhoods, 10)
-table(fraud_neighborhoods$Neighborhood)
-```
-
-```{r}
-after2009_adjusted = after2009
-```
-
-```{r}
-# Set seed for reproducibility. Add small random noise (~1% SD) around predicted prices to simulate natural market variation.
-set.seed(123)
-noise = rnorm(length(predicted_prices),
-              mean = 0,
-              sd = predicted_prices * 0.01)
-new_prices = predicted_prices + noise
-```
-
-```{r}
-after2009_adjusted = after2009
-after2009_adjusted$SalePrice[flagged_rows_after2009] = new_prices
-```
-
-```{r}
-# Compare density plots before and after price adjustment
-
-pBeforeNAmes <- ggplot(after2009 %>% filter(Neighborhood == "NAmes"),
-                       aes(x = SalePrice)) +
-  geom_density(fill = "yellow", alpha = 0.5, color = "black") +
-  geom_vline(xintercept = 142769.7, color = "red", linetype = "dashed", size = 1) +
-  ggtitle("NAmes - Before Fraud Fix (Spike @142,769)") +
-  xlab("Sale Price") + ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-pAfterNAmes <- ggplot(after2009_adjusted %>% filter(Neighborhood == "NAmes"),
-                      aes(x = SalePrice)) +
-  geom_density(fill = "orange", alpha = 0.5, color = "black") +
-  ggtitle("NAmes - After Fraud Fix (Smoothed)") +
-  xlab("Sale Price") + ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-pBeforeGilbert <- ggplot(after2009 %>% filter(Neighborhood == "Gilbert"),
-                         aes(x = SalePrice)) +
-  geom_density(fill = "lightgreen", alpha = 0.5, color = "black") +
-  geom_vline(xintercept = 142769.7, color = "red", linetype = "dashed", size = 1) +
-  ggtitle("Gilbert - Before Fraud Fix (Spike @142,769)") +
-  xlab("Sale Price") + ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-pAfterGilbert <- ggplot(after2009_adjusted %>% filter(Neighborhood == "Gilbert"),
-                        aes(x = SalePrice)) +
-  geom_density(fill = "lightblue", alpha = 0.5, color = "black") +
-  ggtitle("Gilbert - After Fraud Fix (Smoothed)") +
-  xlab("Sale Price") + ylab("Density") +
-  scale_x_continuous(labels = scales::comma, limits = c(100000, 350000)) +
-  theme_minimal()
-
-grid.arrange(pBeforeNAmes, pAfterNAmes, pBeforeGilbert, pAfterGilbert, nrow = 2)
-```
-
-```{r}
-# After applying the fraud fix, the spike at $142,769.70 disappears in both neighborhoods and the distribution becomes smooth, confirming the correction blended well with legitimate market data.
-```
-
-```{r}
 library(broom)
-library(ggplot2)
+read_prices <- function(path) {
+  d <- read.csv(path, check.names = FALSE)
+  d <- d[, !(names(d) %in% c("", "Id", "Utilities") | grepl("^Unnamed", names(d)))]
+  for (v in c("MSSubClass", "OverallQual", "OverallCond")) d[[v]] <- factor(d[[v]])
+  d
+}
+before <- read_prices("Data/PricesBefore2009.csv")
+after <- read_prices("Data/PricesAfter2009.csv")
+cat("Before rows:", nrow(before), "After rows:", nrow(after), "\n")
+flagged <- which(after$SalePrice == 142769.7)
+print(table(after$Neighborhood[flagged]))
 ```
 
-```{r}
-regAfter2009_adjusted = lm(formula(regAfter2009optimal), data = after2009_adjusted)
-
-# augment combines predicted values, residuals, and influence statistics for outlier visualization
-ggplot(augment(regAfter2009_adjusted),
-       aes(x = .fitted, y = .resid)) +
-  geom_point(alpha = 0.6, color = "blue") +
-  stat_smooth(method = "loess", color = "red", se = FALSE)
+## Fit and inspect the observed data
+```{r observed-models}
+model_formula <- SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
+  TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd + Fireplaces + LotArea +
+  BsmtFinSF1 + KitchenQual + Neighborhood + ExterQual + X1stFlrSF
+before_model <- lm(model_formula, data = before, na.action = na.exclude)
+after_model <- lm(model_formula, data = after, na.action = na.exclude)
+summary(before_model)
+summary(after_model)
+autoplot(after_model)
+ggplot(after, aes(SalePrice)) + geom_density() + facet_wrap(~ Neighborhood, scales = "free_y")
 ```
 
-```{r}
-# The Residuals vs Fitted plot confirms the fraud fix was effective. Residuals are now evenly scattered around zero with no visible clustering.
-```
+## Optional scenario: model-based replacement
+Repeated sale prices and residual patterns do not establish fraud. This scenario constructs alternative targets to examine sensitivity; it does not recover verified transaction values. Raw data remain untouched.
 
-```{r}
-regAfter2009optimalFraud = lm(SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
-                              TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd +
-                              Fireplaces + LotArea + BsmtFinSF1 + KitchenQual +
-                              Neighborhood + ExterQual + X1stFlrSF, data = after2009)
-
-summary(regAfter2009optimalFraud)
+```{r scenario}
+# Align categorical levels to the training model; unknown levels become NA.
+scenario_inputs <- after[flagged, , drop = FALSE]
+for (v in names(before_model$xlevels)) {
+  scenario_inputs[[v]] <- factor(scenario_inputs[[v]], levels = before_model$xlevels[[v]])
+}
+scenario_predictions <- predict(before_model, newdata = scenario_inputs)
+replaceable <- which(is.finite(scenario_predictions) & scenario_predictions > 0)
+set.seed(123)
+scenario <- after
+scenario$SalePrice[flagged[replaceable]] <- scenario_predictions[replaceable] +
+  rnorm(length(replaceable), sd = 0.01 * scenario_predictions[replaceable])
+cat("Scenario replacements:", length(replaceable), "of", length(flagged), "flagged rows\n")
+scenario_model <- lm(model_formula, data = scenario, na.action = na.exclude)
+summary(scenario_model)
+autoplot(scenario_model)
 ```
-
-```{r}
-library(ggfortify)
-autoplot(regAfter2009_adjusted)
-```
-
-```{r}
-# In the diagnostic plots for regAfter2009_adjusted, a few points lie far from the main trend line in the Residuals vs Fitted and QQ plots. These represent potential outliers with sale prices that differ greatly from model predictions, possibly due to unusual property characteristics or remaining fraudulent reporting.
-```
+Improved residuals after replacing targets with model predictions are partly expected by construction. They do not demonstrate improved prediction on independent, verified sales. Compare against held-out untouched transactions before making predictive claims. Complete-case fitting can change sample composition across periods.
