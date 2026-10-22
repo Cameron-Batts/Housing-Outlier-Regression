@@ -34,7 +34,7 @@ Install R and Pandoc (or use RStudio), then run from the repository root:
 source("install.R")
 rmarkdown::render("Notebooks/housing_outlier_regression.Rmd")
 ```
-Tested numerical/NLP packages are recorded in requirements-validation.txt.
+R package versions are recorded in Reports/validated_packages.csv and Reports/validated_session.txt.
 
 ## Files
 - [R Markdown analysis](Notebooks/housing_outlier_regression.Rmd)
