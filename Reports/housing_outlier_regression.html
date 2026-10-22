@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Housing Regression Diagnostics and Price Sensitivity | Cameron Batts</title><style>body{margin:0;background:#f7f8fa;color:#152540;font:16px/1.65 system-ui}main{max-width:950px;margin:auto;padding:32px 24px}h1{font:bold 2.4rem Georgia}h2{border-bottom:2px solid #e8c97a;margin-top:36px}pre{padding:18px;background:white;border-left:3px solid #c9a84c;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}details{margin:16px 0}summary{cursor:pointer}p{overflow-wrap:anywhere}a{color:#1a3560}img{max-width:100%;height:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px;border-bottom:1px solid #ddd}</style><main><a href="https://cameron-batts.github.io/">← Portfolio</a><h1>Housing Regression Diagnostics and Price Sensitivity</h1><p><strong>Cameron Batts</strong></p><h2>Problem</h2><p>Investigate repeated sale prices, model assumptions and sensitivity to model-based target replacement.</p><h2>Approach</h2><p>Inspect the provided pre/post-2009 files, fit a fixed 15-term regression specification, compare diagnostic plots and retain raw targets separately from an optional replacement scenario.</p><h2>Reported results</h2><p>Data checks found 1,933 earlier and 986 later records, each with 82 columns including an exported row index. Thirty later records share the exact sale price $142,769.70, compared with zero earlier records. They span ten neighborhoods, including nine Gilbert and four NAmes observations.</p><h2>Limitations and corrections</h2><p>Repeated prices, density peaks and residual patterns do not establish fraud. The original workflow replaced flagged targets with model predictions plus 1% noise; smoother residuals after that operation do not validate recovered prices or independent predictive accuracy. No held-out evaluation was reported. Existing images and PDF contain historical wording and interpretations that predate this correction.</p><h2>Data</h2><p>The included data have no documented upstream source or redistribution license in the original repository. Preserve provenance when it becomes available.</p><h2>Verification</h2><p>Dataset dimensions, missingness and relevant counts were checked directly. R is unavailable in this environment, so revised R code was reviewed but not parsed, executed or rendered. No new fitted-model performance is claimed.</p><p><a href="https://github.com/Cameron-Batts/Housing-Outlier-Regression/blob/main/Notebooks/housing_outlier_regression.Rmd">View revised R Markdown source</a></p><details><summary>Revised R Markdown workflow (not executed here)</summary><pre>---
+title: &quot;Housing Regression Diagnostics and Price Sensitivity&quot;
+author: &quot;Cameron Batts&quot;
+output: html_document
+---
+
+## Problem
+Investigate repeated sale prices, model assumptions and sensitivity to model-based target replacement.
+
+## Approach
+Inspect the provided pre/post-2009 files, fit a fixed 15-term regression specification, compare diagnostic plots and retain raw targets separately from an optional replacement scenario.
+
+## Reported results
+Data checks found 1,933 earlier and 986 later records, each with 82 columns including an exported row index. Thirty later records share the exact sale price $142,769.70, compared with zero earlier records. They span ten neighborhoods, including nine Gilbert and four NAmes observations.
+
+## Limitations and corrections
+Repeated prices, density peaks and residual patterns do not establish fraud. The original workflow replaced flagged targets with model predictions plus 1% noise; smoother residuals after that operation do not validate recovered prices or independent predictive accuracy. No held-out evaluation was reported. Existing images and PDF contain historical wording and interpretations that predate this correction.
+
+## Verification
+Dataset dimensions, missingness and relevant counts were checked directly. R is unavailable in this environment, so revised R code was reviewed but not parsed, executed or rendered. No new fitted-model performance is claimed.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+project_root &lt;- if (dir.exists(&quot;Data&quot;)) &quot;.&quot; else &quot;..&quot;
+knitr::opts_knit$set(root.dir = normalizePath(project_root))
+```
+
+```{r libraries}
+library(tidyverse)
+library(ggfortify)
+library(broom)
+read_prices &lt;- function(path) {
+  d &lt;- read.csv(path, check.names = FALSE)
+  d &lt;- d[, !(names(d) %in% c(&quot;&quot;, &quot;Id&quot;, &quot;Utilities&quot;) | grepl(&quot;^Unnamed&quot;, names(d)))]
+  for (v in c(&quot;MSSubClass&quot;, &quot;OverallQual&quot;, &quot;OverallCond&quot;)) d[[v]] &lt;- factor(d[[v]])
+  d
+}
+before &lt;- read_prices(&quot;Data/PricesBefore2009.csv&quot;)
+after &lt;- read_prices(&quot;Data/PricesAfter2009.csv&quot;)
+cat(&quot;Before rows:&quot;, nrow(before), &quot;After rows:&quot;, nrow(after), &quot;\n&quot;)
+flagged &lt;- which(after$SalePrice == 142769.7)
+print(table(after$Neighborhood[flagged]))
+```
+
+## Fit and inspect the observed data
+```{r observed-models}
+model_formula &lt;- SalePrice ~ OverallQual + GrLivArea + GarageCars + GarageArea +
+  TotalBsmtSF + FullBath + YearBuilt + YearRemodAdd + Fireplaces + LotArea +
+  BsmtFinSF1 + KitchenQual + Neighborhood + ExterQual + X1stFlrSF
+before_model &lt;- lm(model_formula, data = before, na.action = na.exclude)
+after_model &lt;- lm(model_formula, data = after, na.action = na.exclude)
+summary(before_model)
+summary(after_model)
+autoplot(after_model)
+ggplot(after, aes(SalePrice)) + geom_density() + facet_wrap(~ Neighborhood, scales = &quot;free_y&quot;)
+```
+
+## Optional scenario: model-based replacement
+Repeated sale prices and residual patterns do not establish fraud. This scenario constructs alternative targets to examine sensitivity; it does not recover verified transaction values. Raw data remain untouched.
+
+```{r scenario}
+# Align categorical levels to the training model; unknown levels become NA.
+scenario_inputs &lt;- after[flagged, , drop = FALSE]
+for (v in names(before_model$xlevels)) {
+  scenario_inputs[[v]] &lt;- factor(scenario_inputs[[v]], levels = before_model$xlevels[[v]])
+}
+scenario_predictions &lt;- predict(before_model, newdata = scenario_inputs)
+replaceable &lt;- which(is.finite(scenario_predictions) &amp; scenario_predictions &gt; 0)
+set.seed(123)
+scenario &lt;- after
+scenario$SalePrice[flagged[replaceable]] &lt;- scenario_predictions[replaceable] +
+  rnorm(length(replaceable), sd = 0.01 * scenario_predictions[replaceable])
+cat(&quot;Scenario replacements:&quot;, length(replaceable), &quot;of&quot;, length(flagged), &quot;flagged rows\n&quot;)
+scenario_model &lt;- lm(model_formula, data = scenario, na.action = na.exclude)
+summary(scenario_model)
+autoplot(scenario_model)
+```
+Improved residuals after replacing targets with model predictions are partly expected by construction. They do not demonstrate improved prediction on independent, verified sales. Compare against held-out untouched transactions before making predictive claims. Complete-case fitting can change sample composition across periods.
+</pre></details><h2>Historical visualizations</h2><p>Images below are retained from the original analysis and do not represent execution of the revised workflow. Historical labels may use stronger claims than the corrected interpretation above supports.</p><figure><img alt="Historical Fraud visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Fraud.png"><figcaption>Fraud — historical output</figcaption></figure><figure><img alt="Historical Geom visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Geom.png"><figcaption>Geom — historical output</figcaption></figure><figure><img alt="Historical Residuals visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Residuals.png"><figcaption>Residuals — historical output</figcaption></figure><figure><img alt="Historical NAmes visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/NAmes.png"><figcaption>NAmes — historical output</figcaption></figure><figure><img alt="Historical Leverage visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Leverage.png"><figcaption>Leverage — historical output</figcaption></figure><figure><img alt="Historical Diagnostic-Plot visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Diagnostic-Plot.png"><figcaption>Diagnostic-Plot — historical output</figcaption></figure><figure><img alt="Historical More-Plots visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/More-Plots.png"><figcaption>More-Plots — historical output</figcaption></figure><figure><img alt="Historical Fitted visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Fitted.png"><figcaption>Fitted — historical output</figcaption></figure><figure><img alt="Historical Density-Plot visualization" src="https://raw.githubusercontent.com/Cameron-Batts/Housing-Outlier-Regression/main/Images/Density-Plot.png"><figcaption>Density-Plot — historical output</figcaption></figure></main></html>
